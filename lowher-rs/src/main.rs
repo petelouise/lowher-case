@@ -47,6 +47,7 @@
 use regex::Regex;
 use std::env;
 use std::fs;
+use std::io::{self, Read};
 
 fn mark_code_blocks(text: &str) -> (String, Vec<String>, Vec<String>) {
     let code_block_pattern = Regex::new(r"(```[\s\S]*?```|`[^`]*`)").unwrap();
@@ -113,7 +114,7 @@ fn lowher(text: &str, preserve_capitalized: bool) -> String {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     let mut preserve_capitalized = true;
-    let mut filename = None;
+    let mut input_source = None;
 
     for arg in args.iter().skip(1) {
         match arg.as_str() {
@@ -126,7 +127,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 run_test();
                 return Ok(());
             }
-            _ if filename.is_none() => filename = Some(arg),
+            "-" => input_source = Some(InputSource::Stdin),
+            _ if input_source.is_none() => input_source = Some(InputSource::File(arg.to_string())),
             _ => {
                 eprintln!("Unknown argument: {}", arg);
                 print_help();
@@ -135,20 +137,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     }
 
-    let filename = match filename {
-        Some(name) => name,
+    let content = match input_source {
+        Some(InputSource::File(filename)) => fs::read_to_string(filename)?,
+        Some(InputSource::Stdin) => {
+            let mut buffer = String::new();
+            io::stdin().read_to_string(&mut buffer)?;
+            buffer
+        }
         None => {
-            eprintln!("Missing filename argument.");
-            print_help();
-            std::process::exit(1);
+            let mut buffer = String::new();
+            io::stdin().read_to_string(&mut buffer)?;
+            buffer
         }
     };
 
-    let content = fs::read_to_string(filename)?;
     let output_text = lowher(&content, preserve_capitalized);
     println!("{}", output_text);
 
     Ok(())
+}
+
+enum InputSource {
+    File(String),
+    Stdin,
 }
 
 fn run_test() {
@@ -174,15 +185,18 @@ fn run_test() {
 fn print_help() {
     println!("Lowher - Convert text to lowercase while optionally preserving proper nouns and code blocks");
     println!("\nUsage:");
-    println!("  lowher [OPTIONS] <filename>");
+    println!("  lowher [OPTIONS] [<filename> | -]");
     println!("\nOptions:");
     println!("  -a, --lowercase-all    Lowercase all words, including those starting with capital letters");
     println!("  --help                 Print this help message");
+    println!("  -                      Read from stdin instead of a file");
     println!("\nDescription:");
-    println!("  Lowher reads the content of the specified file, converts it to lowercase");
+    println!("  Lowher reads the content of the specified file or from stdin, converts it to lowercase");
     println!("  while optionally preserving the case of proper nouns, always preserving");
     println!("  acronyms and code blocks. The result is printed to stdout.");
-    println!("\nExample:");
+    println!("\nExamples:");
     println!("  lowher input.txt > output.txt");
     println!("  lowher -a input.txt > output_all_lowercase.txt");
+    println!("  pbpaste | lowher - > output.txt");
+    println!("  echo 'Some TEXT' | lowher");
 }
