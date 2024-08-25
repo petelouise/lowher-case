@@ -75,29 +75,59 @@ fn unmark_code_blocks(text: &str, placeholders: &[String], code_blocks: &[String
     unmarked_text
 }
 
-fn process_text(text: &str, preserve_capitalized: bool) -> String {
+fn process_text(text: &str, preserve_capitalized: bool, preserve_sentence_case: bool) -> String {
+    let sentence_pattern = Regex::new(r"(?:^|[.!?]\s+)([A-Z][^.!?]*(?:[.!?]|$))").unwrap();
     let word_pattern = Regex::new(r"\b\w+\b").unwrap();
     let mut result = String::with_capacity(text.len());
     let mut last_end = 0;
 
-    for cap in word_pattern.captures_iter(text) {
-        let word = cap.get(0).unwrap();
-        let start = word.start();
-        let end = word.end();
+    for sentence_cap in sentence_pattern.captures_iter(text) {
+        let sentence = sentence_cap.get(1).unwrap();
+        let sentence_start = sentence.start();
+        let sentence_end = sentence.end();
 
-        // Add any text between the last word and this one
-        result.push_str(&text[last_end..start]);
+        // Add any text before the sentence
+        result.push_str(&text[last_end..sentence_start]);
 
-        // Check if the word is all uppercase or (if preserving) starts with uppercase
-        if word.as_str().chars().all(char::is_uppercase)
-            || (preserve_capitalized && word.as_str().chars().next().unwrap().is_uppercase())
-        {
-            result.push_str(word.as_str());
-        } else {
-            result.push_str(&word.as_str().to_lowercase());
+        let mut sentence_result = String::with_capacity(sentence.len());
+        let mut sentence_last_end = 0;
+
+        for word_cap in word_pattern.captures_iter(sentence.as_str()) {
+            let word = word_cap.get(0).unwrap();
+            let word_start = word.start();
+            let word_end = word.end();
+
+            // Add any text between the last word and this one
+            sentence_result.push_str(&sentence.as_str()[sentence_last_end..word_start]);
+
+            let word_str = word.as_str();
+            let is_first_word = word_start == 0;
+
+            if word_str.chars().all(char::is_uppercase)
+                || (preserve_capitalized && word_str.chars().next().unwrap().is_uppercase() && !is_first_word)
+                || (preserve_sentence_case && is_first_word)
+            {
+                sentence_result.push_str(word_str);
+            } else {
+                sentence_result.push_str(&word_str.to_lowercase());
+            }
+
+            sentence_last_end = word_end;
         }
 
-        last_end = end;
+        // Add any remaining text in the sentence
+        sentence_result.push_str(&sentence.as_str()[sentence_last_end..]);
+
+        // If not preserving sentence case, lowercase the first character
+        if !preserve_sentence_case {
+            if let Some(first_char) = sentence_result.chars().next() {
+                let lowercased = first_char.to_lowercase().collect::<String>();
+                sentence_result.replace_range(0..1, &lowercased);
+            }
+        }
+
+        result.push_str(&sentence_result);
+        last_end = sentence_end;
     }
 
     // Add any remaining text
@@ -105,20 +135,22 @@ fn process_text(text: &str, preserve_capitalized: bool) -> String {
     result
 }
 
-fn lowher(text: &str, preserve_capitalized: bool) -> String {
+fn lowher(text: &str, preserve_capitalized: bool, preserve_sentence_case: bool) -> String {
     let (marked_text, placeholders, code_blocks) = mark_code_blocks(text);
-    let processed_text = process_text(&marked_text, preserve_capitalized);
+    let processed_text = process_text(&marked_text, preserve_capitalized, preserve_sentence_case);
     unmark_code_blocks(&processed_text, &placeholders, &code_blocks)
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     let mut preserve_capitalized = true;
+    let mut preserve_sentence_case = false;
     let mut input_source = None;
 
     for arg in args.iter().skip(1) {
         match arg.as_str() {
             "-a" | "--lowercase-all" => preserve_capitalized = false,
+            "-s" | "--preserve-sentence-case" => preserve_sentence_case = true,
             "--help" => {
                 print_help();
                 return Ok(());
@@ -151,7 +183,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     };
 
-    let output_text = lowher(&content, preserve_capitalized);
+    let output_text = lowher(&content, preserve_capitalized, preserve_sentence_case);
     println!("{}", output_text);
 
     Ok(())
@@ -170,33 +202,42 @@ fn run_test() {
                            console.log('HELLO WORLD');
                        }
                        ```
-                       More TEXT here. Let's include an email: John.Doe@Example.com and a URL: https://www.Example.com.";
+                       More TEXT here. Let's include an email: John.Doe@Example.com and a URL: https://www.Example.com. \
+                       Another sentence. And one more.";
 
     println!("Original text:");
     println!("{}\n", test_string);
 
-    println!("Processed text (preserving capitalized words):");
-    println!("{}\n", lowher(test_string, true));
+    println!("Processed text (preserving capitalized words, lowercasing first letter of sentences):");
+    println!("{}\n", lowher(test_string, true, false));
 
-    println!("Processed text (lowercasing all words):");
-    println!("{}", lowher(test_string, false));
+    println!("Processed text (lowercasing all words, lowercasing first letter of sentences):");
+    println!("{}\n", lowher(test_string, false, false));
+
+    println!("Processed text (preserving capitalized words and sentence case):");
+    println!("{}\n", lowher(test_string, true, true));
+
+    println!("Processed text (lowercasing all words, preserving sentence case):");
+    println!("{}", lowher(test_string, false, true));
 }
 
 fn print_help() {
-    println!("Lowher - Convert text to lowercase while optionally preserving proper nouns and code blocks");
+    println!("Lowher - Convert text to lowercase while optionally preserving proper nouns, sentence case, and code blocks");
     println!("\nUsage:");
     println!("  lowher [OPTIONS] [<filename> | -]");
     println!("\nOptions:");
-    println!("  -a, --lowercase-all    Lowercase all words, including those starting with capital letters");
-    println!("  --help                 Print this help message");
-    println!("  -                      Read from stdin instead of a file");
+    println!("  -a, --lowercase-all           Lowercase all words, including those starting with capital letters");
+    println!("  -s, --preserve-sentence-case  Preserve the case of the first letter in each sentence");
+    println!("  --help                        Print this help message");
+    println!("  -                             Read from stdin instead of a file");
     println!("\nDescription:");
     println!("  Lowher reads the content of the specified file or from stdin, converts it to lowercase");
-    println!("  while optionally preserving the case of proper nouns, always preserving");
+    println!("  while optionally preserving the case of proper nouns and sentence beginnings, always preserving");
     println!("  acronyms and code blocks. The result is printed to stdout.");
     println!("\nExamples:");
     println!("  lowher input.txt > output.txt");
     println!("  lowher -a input.txt > output_all_lowercase.txt");
+    println!("  lowher -s input.txt > output_preserve_sentence_case.txt");
     println!("  pbpaste | lowher - > output.txt");
-    println!("  echo 'Some TEXT' | lowher");
+    println!("  echo 'Some TEXT. Another sentence.' | lowher");
 }
