@@ -27,15 +27,11 @@ def process_text(text):
 
     for token in doc:
         if token.ent_type_ in ["PERSON", "ORG", "GPE"] or token.text.isupper():
-            processed_text.append(token.text)
+            processed_text.append(token)
         else:
             processed_text.append(token.text.lower())
 
-    if "whitespace_" not in dir(token):
-        import ipdb
-
-        ipdb.set_trace()
-    return "".join([token + token.whitespace_ for token in processed_text])
+    return "".join([token.text_with_ws if isinstance(token, spacy.tokens.Token) else token for token in processed_text])
 
 
 def lowercase_except_nouns_acronyms_and_code(text):
