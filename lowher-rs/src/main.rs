@@ -104,7 +104,9 @@ fn process_text(text: &str, preserve_capitalized: bool, preserve_sentence_case: 
             let is_first_word = word_start == 0;
 
             if word_str.chars().all(char::is_uppercase)
-                || (preserve_capitalized && word_str.chars().next().unwrap().is_uppercase() && !is_first_word)
+                || (preserve_capitalized
+                    && word_str.chars().next().unwrap().is_uppercase()
+                    && !is_first_word)
                 || (preserve_sentence_case && is_first_word)
             {
                 sentence_result.push_str(word_str);
@@ -196,7 +198,7 @@ enum InputSource {
 
 fn run_test() {
     let test_string = "This is a TEST String with ACRONYMS like NASA and proper Nouns like John Doe. \
-                       Here's some `inline code` and a code block:
+                       Here's some `inlineCode` and a code block:
                        ```
                        function testFunction() {
                            console.log('HELLO WORLD');
@@ -208,7 +210,9 @@ fn run_test() {
     println!("Original text:");
     println!("{}\n", test_string);
 
-    println!("Processed text (preserving capitalized words, lowercasing first letter of sentences):");
+    println!(
+        "Processed text (preserving capitalized words, lowercasing first letter of sentences):"
+    );
     println!("{}\n", lowher(test_string, true, false));
 
     println!("Processed text (lowercasing all words, lowercasing first letter of sentences):");
@@ -227,11 +231,15 @@ fn print_help() {
     println!("  lowher [OPTIONS] [<filename> | -]");
     println!("\nOptions:");
     println!("  -a, --lowercase-all           Lowercase all words, including those starting with capital letters");
-    println!("  -s, --preserve-sentence-case  Preserve the case of the first letter in each sentence");
+    println!(
+        "  -s, --preserve-sentence-case  Preserve the case of the first letter in each sentence"
+    );
     println!("  --help                        Print this help message");
     println!("  -                             Read from stdin instead of a file");
     println!("\nDescription:");
-    println!("  Lowher reads the content of the specified file or from stdin, converts it to lowercase");
+    println!(
+        "  Lowher reads the content of the specified file or from stdin, converts it to lowercase"
+    );
     println!("  while optionally preserving the case of proper nouns and sentence beginnings, always preserving");
     println!("  acronyms and code blocks. The result is printed to stdout.");
     println!("\nExamples:");
