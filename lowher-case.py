@@ -27,11 +27,11 @@ def process_text(text):
 
     for token in doc:
         if token.ent_type_ in ["PERSON", "ORG", "GPE"] or token.text.isupper():
-            processed_text.append(token)
+            processed_text.append(token.text_with_ws)
         else:
-            processed_text.append(token.text.lower())
+            processed_text.append(token.text.lower() + token.whitespace_)
 
-    return "".join([token.text_with_ws if isinstance(token, spacy.tokens.Token) else token for token in processed_text])
+    return "".join(processed_text)
 
 
 def lowercase_except_nouns_acronyms_and_code(text):
