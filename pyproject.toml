@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "lowher-case"
+version = "0.1.0"
+description = "as best a case as can be"
+authors = ["petelouise <programmetress@petelouise.beauty>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+spacy = "^3.7.6"
+ipdb = "^0.13.13"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
