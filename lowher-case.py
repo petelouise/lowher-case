@@ -1,57 +1,50 @@
-import io
 import re
 
-import spacy
+# Compile regex patterns
+CODE_BLOCK_PATTERN = re.compile(r"(```[\s\S]*?```|`[^`\n]+`)")
+CAPITALIZED_WORD_PATTERN = re.compile(r"\b[A-Z][a-z]+\b")
+ACRONYM_PATTERN = re.compile(r"\b[A-Z]{2,}\b")
 
-# Compile regex pattern once
-CODE_BLOCK_PATTERN = re.compile(r"(```[\s\S]*?```|`[^`]*`)")
+def mark_special_cases(text):
+    # Find all special cases (code blocks, capitalized words, acronyms)
+    special_cases = (CODE_BLOCK_PATTERN.findall(text) +
+                     CAPITALIZED_WORD_PATTERN.findall(text) +
+                     ACRONYM_PATTERN.findall(text))
+    
+    # Sort special cases by their position in the text (to handle overlaps)
+    special_cases.sort(key=lambda x: text.index(x))
+    
+    # Replace special cases with placeholders
+    placeholders = []
+    for i, case in enumerate(special_cases):
+        placeholder = f"__SPECIAL_CASE_{i}__"
+        text = text.replace(case, placeholder, 1)
+        placeholders.append((placeholder, case))
+    
+    return text, placeholders
 
-# Load the spaCy model (consider using a smaller model if available)
-nlp = spacy.load("en_core_web_sm")
-
-
-def mark_code_blocks(text):
-    code_blocks = CODE_BLOCK_PATTERN.findall(text)
-    placeholders = [f"__CODE_BLOCK_{i}__" for i in range(len(code_blocks))]
-    for i, code_block in enumerate(code_blocks):
-        text = text.replace(code_block, placeholders[i])
-    return text, placeholders, code_blocks
-
-
-def unmark_code_blocks(text, placeholders, code_blocks):
-    for placeholder, code_block in zip(placeholders, code_blocks):
-        text = text.replace(placeholder, code_block)
+def unmark_special_cases(text, placeholders):
+    for placeholder, original in placeholders:
+        text = text.replace(placeholder, original)
     return text
 
-
-def process_text(text):
-    doc = nlp(text)
-    output = io.StringIO()
-
-    for token in doc:
-        if token.ent_type_ in ["PERSON", "ORG", "GPE"] or token.text.isupper():
-            output.write(token.text_with_ws)
-        else:
-            output.write(token.text.lower() + token.whitespace_)
-
-    return output.getvalue()
-
-
 def lowher(text):
-    text, placeholders, code_blocks = mark_code_blocks(text)
-    processed_text = process_text(text)
-    final_text = unmark_code_blocks(processed_text, placeholders, code_blocks)
-    return final_text
-
+    # Mark special cases
+    text, placeholders = mark_special_cases(text)
+    
+    # Lowercase the remaining text
+    text = text.lower()
+    
+    # Restore special cases
+    text = unmark_special_cases(text, placeholders)
+    
+    return text
 
 if __name__ == "__main__":
-    default_input_text = """
-This is an EXAMPLE of Proper Noun Detection. `Inline code should STAY`.
-And this should stay inside a ```python
-code block
-```. More TEXT.
-"""
-    input_text = default_input_text
+    import sys
+
+    # Read input from stdin if no file is specified
+    input_text = sys.stdin.read() if len(sys.argv) == 1 else open(sys.argv[1]).read()
 
     output_text = lowher(input_text)
     print(output_text)
